@@ -5,6 +5,7 @@ import com.fluxCart.identityReconciliation.payload.response.ConsolidatedContactR
 import com.fluxCart.identityReconciliation.service.ContactService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -14,7 +15,7 @@ public class ContactController {
     private ContactService contactService;
 
     @PostMapping("/identify")
-    public ConsolidatedContactResponse identifyContact(ContactRequest req) {
+    public ConsolidatedContactResponse identifyContact(@RequestBody ContactRequest req) {
         return contactService.consolidateContacts(req);
     }
 }

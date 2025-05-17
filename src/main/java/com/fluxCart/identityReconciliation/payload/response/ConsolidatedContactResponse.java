@@ -6,6 +6,9 @@ import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Data
 @JsonRootName("contact")
@@ -29,23 +32,23 @@ public class ConsolidatedContactResponse {
           if(priContact.getEmail() != null) {
                this.emails.add(priContact.getEmail());
           }
-          this.emails.addAll(
-                  secondaryContacts.stream()
-                          .filter(contact -> contact.getEmail() != null)
-                          .map(Contact::getEmail)
-                          .toList()
-          );
+          Set<String> emailSet = secondaryContacts.stream()
+                  .map(Contact::getEmail)
+                  .filter(email -> email != null && !Objects.equals(priContact.getEmail(), email))
+                  .collect(Collectors.toSet());
+
+          this.emails.addAll(emailSet);
+
 
           this.phoneNumbers = new ArrayList<>();
           if(priContact.getPhoneNumber() != null) {
                this.phoneNumbers.add(priContact.getPhoneNumber());
           }
-          this.phoneNumbers.addAll(
-                  secondaryContacts.stream()
-                          .filter(contact -> contact.getPhoneNumber() != null)
-                          .map(Contact::getPhoneNumber)
-                          .toList()
-          );
+          Set<String> phoneSet = secondaryContacts.stream()
+                  .map(Contact::getPhoneNumber)
+                  .filter(phoneNumber -> phoneNumber != null &&  !Objects.equals(priContact.getPhoneNumber(), phoneNumber))
+                  .collect(Collectors.toSet());
+          this.phoneNumbers.addAll(phoneSet);
 
           this.secondaryContactIds = secondaryContacts.stream()
                   .map(Contact::getId)
