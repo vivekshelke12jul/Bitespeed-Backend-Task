@@ -34,8 +34,17 @@ public class Contact {
     private String email;
     private Integer linkedId;
     private String linkPrecedence;
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
 
+    public Contact(String phoneNumber, String email, Integer linkedId, String linkPrecedence, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime deletedAt) {
+        this.phoneNumber = phoneNumber;
+        this.email = email;
+        this.linkedId = linkedId;
+        this.linkPrecedence = linkPrecedence;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+        this.deletedAt = deletedAt;
+    }
 }
