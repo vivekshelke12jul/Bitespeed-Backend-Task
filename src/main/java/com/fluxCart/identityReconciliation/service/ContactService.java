@@ -67,7 +67,7 @@ public class ContactService {
 //  CASE3: if both phone and email are linked to the same primary contact
         if(priContactPhone.getId().equals(priContactEmail.getId())) {
 
-            // there is no new email or phone number so dont create a contact entity
+            // there is no new email or phone number so don't create a contact entity
 
             // get all secondary contacts of the primary contact
             List<Contact> secondaryContacts = contactRepository.findByLinkedId(priContactPhone.getId());
@@ -76,7 +76,34 @@ public class ContactService {
             return new ConsolidatedContactResponse(priContactPhone, secondaryContacts);
         }
 
-        return null;
+//  CASE4: if phone and email are linked to different primary contacts
+        Contact older = priContactPhone;
+        Contact newer = priContactEmail;
+        if(priContactEmail.getCreatedAt().isBefore(priContactPhone.getCreatedAt())) {
+            older = priContactEmail;
+            newer = priContactPhone;
+        }
+
+        // there is no new email or phone number so don't create a contact entity
+
+        // the newer and all the contacts linked to newer will be linked to older
+        List<Contact> secondaryContactsOfNewer = contactRepository.findByLinkedId(newer.getId());
+        for(Contact contact : secondaryContactsOfNewer) {
+            contact.setLinkedId(older.getId());
+            contact.setLinkPrecedence("secondary");
+            contact.setUpdatedAt(LocalDateTime.now());
+            contactRepository.save(contact);
+        }
+        newer.setLinkedId(older.getId());
+        newer.setLinkPrecedence("secondary");
+        newer.setUpdatedAt(LocalDateTime.now());
+        contactRepository.save(newer);
+
+        // get all latest secondary contacts of older after updating
+        List<Contact> secondaryContacts = contactRepository.findByLinkedId(older.getId());
+
+        // consolidate into one contact response
+        return new ConsolidatedContactResponse(older, secondaryContacts);
     }
 
     private Contact getPrimaryContactByPhone(String phone) {
@@ -112,6 +139,5 @@ public class ContactService {
         Contact priContactEmail = contact.getLinkPrecedence().equals("primary") ? contact : contactRepository.findById(contact.getLinkedId()).get();
         return priContactEmail;
     }
-
 
 }
