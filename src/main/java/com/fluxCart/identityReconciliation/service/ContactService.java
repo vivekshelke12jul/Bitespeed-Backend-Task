@@ -67,20 +67,13 @@ public class ContactService {
 //  CASE3: if both phone and email are linked to the same primary contact
         if(priContactPhone.getId().equals(priContactEmail.getId())) {
 
-            // create a new contact
-            Contact contact = new Contact(
-                    req.getPhoneNumber(),
-                    req.getEmail(),
-                    priContactPhone.getId(),
-                    "secondary",
-                    LocalDateTime.now(),
-                    LocalDateTime.now(),
-                    null
-            );
-            Contact savedContact = contactRepository.save(contact);
+            // there is no new email or phone number so dont create a contact entity
 
             // get all secondary contacts of the primary contact
             List<Contact> secondaryContacts = contactRepository.findByLinkedId(priContactPhone.getId());
+
+            // consolidate into one contact response
+            return new ConsolidatedContactResponse(priContactPhone, secondaryContacts);
         }
 
         return null;
