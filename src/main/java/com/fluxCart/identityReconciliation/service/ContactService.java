@@ -7,6 +7,7 @@ import com.fluxCart.identityReconciliation.repository.ContactRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -38,6 +39,30 @@ public class ContactService {
             Contact savedContact = contactRepository.save(contact);
             return new ConsolidatedContactResponse(savedContact);
         }
+
+//  CASE2: if either phone or email is present
+        if(priContactPhone == null || priContactEmail == null) {
+
+            Contact priContact = priContactPhone == null ? priContactEmail : priContactPhone;
+
+            // create a new contact
+            Contact contact = new Contact(
+                    req.getPhoneNumber(),
+                    req.getEmail(),
+                    priContact.getId(),
+                    "secondary",
+                    LocalDateTime.now(),
+                    LocalDateTime.now(),
+                    null
+            );
+            Contact savedContact = contactRepository.save(contact);
+
+            // get all secondary contacts of the primary contact
+            List<Contact> secondaryContacts = contactRepository.findByLinkedId(priContact.getId());
+
+            // consolidate into one contact response
+            return new ConsolidatedContactResponse(priContact, secondaryContacts);
+        }
         return null;
     }
 
@@ -51,10 +76,10 @@ public class ContactService {
             return null;
         }
 
-        // if contact with this phone is present
+        // if a contact with this phone is present
         // find if this contact is primary ,else get the primary contact from this contact
         Contact contact = oContact.get();
-        Contact priContactPhone = contact.getLinkPrecedence().equals("primary") ? contact : contactRepository.findByLinkedId(contact.getId()).get();
+        Contact priContactPhone = contact.getLinkPrecedence().equals("primary") ? contact : contactRepository.findById(contact.getLinkedId()).get();
         return priContactPhone;
     }
 
@@ -71,7 +96,7 @@ public class ContactService {
         // if contact with this email is present
         // find if this contact is primary ,else get the primary contact from this contact
         Contact contact = oContact.get();
-        Contact priContactEmail = contact.getLinkPrecedence().equals("primary") ? contact : contactRepository.findByLinkedId(contact.getId()).get();
+        Contact priContactEmail = contact.getLinkPrecedence().equals("primary") ? contact : contactRepository.findById(contact.getLinkedId()).get();
         return priContactEmail;
     }
 
