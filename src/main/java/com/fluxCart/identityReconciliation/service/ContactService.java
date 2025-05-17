@@ -23,6 +23,20 @@ public class ContactService {
         Contact priContactPhone = getPrimaryContactByPhone(req.getPhoneNumber());
         Contact priContactEmail = getPrimaryContactByEmail(req.getEmail());
 
+//  CASE0: a contact exist with both phone and email as that of the request
+        Optional<Contact> oContact = contactRepository.findByPhoneNumberAndEmail(req.getPhoneNumber(), req.getEmail());
+        if(oContact.isPresent()) {
+            Contact contact = oContact.get();
+
+            // there is no new email or phone number so don't create a contact entity
+
+            // get all secondary contacts of the primary contact
+            List<Contact> secondaryContacts = contactRepository.findByLinkedId(oContact.get().getId());
+
+            // consolidate into one contact response
+            return new ConsolidatedContactResponse(contact, secondaryContacts);
+        }
+
 //  CASE1: if both phone and email are not present in any contact
         if(priContactPhone == null && priContactEmail == null) {
 
@@ -90,7 +104,6 @@ public class ContactService {
         List<Contact> secondaryContactsOfNewer = contactRepository.findByLinkedId(newer.getId());
         for(Contact contact : secondaryContactsOfNewer) {
             contact.setLinkedId(older.getId());
-            contact.setLinkPrecedence("secondary");
             contact.setUpdatedAt(LocalDateTime.now());
             contactRepository.save(contact);
         }
