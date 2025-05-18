@@ -11,7 +11,7 @@ COPY gradle /app/gradle
 COPY src /app/src/
 
 RUN chmod +x ./gradlew
-RUN ./gradlew clean build -x test
+RUN ./gradlew build -x test
 
 # =================================
 # run stage

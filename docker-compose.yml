@@ -1,0 +1,40 @@
+
+services:
+  app:
+    container_name: bitespeed-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/identityReconciliationDB
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    networks:
+      - bitespeed-network
+
+  db:
+    image: postgres:16
+    container_name: bitespeed-db
+    restart: always
+    environment:
+      POSTGRES_DB: identityReconciliationDB
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - bitespeed-network
+
+volumes:
+  postgres-data:
+
+networks:
+  bitespeed-network:
+    driver: bridge

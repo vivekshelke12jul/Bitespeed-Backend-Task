@@ -7,40 +7,28 @@ import com.fluxCart.identityReconciliation.repository.ContactRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.time.LocalDateTime;
-import java.util.Set;
 
 @Service
 public class ContactService {
+
 
     @Autowired
     private ContactRepository contactRepository;
 
     public ConsolidatedContactResponse consolidateContacts(ContactRequest req) {
 
-//  CASE0: a contact exist with both phone and email as that of the request
-        Optional<Contact> oContact = contactRepository.findByPhoneNumberAndEmail(req.getPhoneNumber(), req.getEmail());
-        if(oContact.isPresent()) {
-            Contact contact = oContact.get();
+        String phone = req.getPhoneNumber();
+        String email = req.getEmail();
 
-            // there is no new email or phone number so don't create a contact entity
+        boolean newInfoRecieved = (phone!=null && !contactRepository.existsByPhoneNumber(phone)) || (email!=null && !contactRepository.existsByEmail(email));
+        boolean existingInfoRecieved = (phone!=null && contactRepository.existsByPhoneNumber(phone)) || (email!=null && contactRepository.existsByEmail(email));
 
-            // get all secondary contacts of the primary contact
-            List<Contact> secondaryContacts = contactRepository.findByLinkedId(oContact.get().getId());
-
-            // consolidate into one contact response
-            return new ConsolidatedContactResponse(contact, secondaryContacts);
-        }
-
-        Contact priContactPhone = getPrimaryContactByPhone(req.getPhoneNumber());
-        Contact priContactEmail = getPrimaryContactByEmail(req.getEmail());
-
-//  CASE1: if both phone and email are not present in any contact
-        if(priContactPhone == null && priContactEmail == null) {
-
-            // create a new contact
+        // both phone and email are new
+        if (newInfoRecieved && !existingInfoRecieved) {
+            // create a primary contact
             Contact contact = new Contact(
                     req.getPhoneNumber(),
                     req.getEmail(),
@@ -54,70 +42,70 @@ public class ContactService {
             return new ConsolidatedContactResponse(savedContact);
         }
 
-//  CASE2: if either phone or email is present
-        if(priContactPhone == null || priContactEmail == null) {
+        // if one is new and other is existing
+        if (newInfoRecieved) {
 
-            Contact priContact = priContactPhone == null ? priContactEmail : priContactPhone;
+            Contact phonePrimaryContact = getPrimaryContactByPhone(req.getPhoneNumber());
+            Contact emailPrimaryContact = getPrimaryContactByEmail(req.getEmail());
+            Contact primaryContact = phonePrimaryContact != null ? phonePrimaryContact : emailPrimaryContact;
 
-            // create a new contact
+            // create a secondary contact
             Contact contact = new Contact(
                     req.getPhoneNumber(),
                     req.getEmail(),
-                    priContact.getId(),
+                    primaryContact.getId(),
                     "secondary",
                     LocalDateTime.now(),
                     LocalDateTime.now(),
                     null
             );
             Contact savedContact = contactRepository.save(contact);
-
-            // get all secondary contacts of the primary contact
-            List<Contact> secondaryContacts = contactRepository.findByLinkedId(priContact.getId());
-
-            // consolidate into one contact response
-            return new ConsolidatedContactResponse(priContact, secondaryContacts);
+            List<Contact> secondaryContacts = contactRepository.findByLinkedId(primaryContact.getId());
+            return new ConsolidatedContactResponse(primaryContact, secondaryContacts);
         }
 
-//  CASE3: if both phone and email are linked to the same primary contact
-        if(priContactPhone.getId().equals(priContactEmail.getId())) {
+        // if nothing is new
 
-            // there is no new email or phone number so don't create a contact entity
+        // don't create a new contact
 
-            // get all secondary contacts of the primary contact
-            List<Contact> secondaryContacts = contactRepository.findByLinkedId(priContactPhone.getId());
+        Contact phonePrimaryContact = getPrimaryContactByPhone(req.getPhoneNumber());
+        Contact emailPrimaryContact = getPrimaryContactByEmail(req.getEmail());
 
-            // consolidate into one contact response
-            return new ConsolidatedContactResponse(priContactPhone, secondaryContacts);
+
+        // if phone and email each point to different primary contacts
+        if(
+                phonePrimaryContact != null &&
+                        emailPrimaryContact != null &&
+                        !phonePrimaryContact.getId().equals(emailPrimaryContact.getId())
+        ) {
+            Contact primaryContact = phonePrimaryContact.getCreatedAt().isBefore(emailPrimaryContact.getCreatedAt()) ? phonePrimaryContact : emailPrimaryContact;
+            Contact otherContact = phonePrimaryContact.getCreatedAt().isBefore(emailPrimaryContact.getCreatedAt()) ? emailPrimaryContact : phonePrimaryContact;
+
+            List<Contact> secondaryOfOther = contactRepository.findByLinkedId(otherContact.getId());
+
+            // make other and its secondary contacts point to primary
+            secondaryOfOther.forEach(con -> {
+                con.setLinkedId(primaryContact.getId());
+                con.setUpdatedAt(LocalDateTime.now());
+                contactRepository.save(con);
+            });
+            otherContact.setLinkedId(primaryContact.getId());
+            otherContact.setLinkPrecedence("secondary");
+            otherContact.setUpdatedAt(LocalDateTime.now());
+            contactRepository.save(otherContact);
+
+            List<Contact> secondaryContacts = contactRepository.findByLinkedId(primaryContact.getId());
+            return new ConsolidatedContactResponse(primaryContact, secondaryContacts);
         }
+        // if only one primary contact is being pointed to
+        else {
+            Contact primaryContact = phonePrimaryContact != null ? phonePrimaryContact : emailPrimaryContact;
 
-//  CASE4: if phone and email are linked to different primary contacts
-        Contact older = priContactPhone;
-        Contact newer = priContactEmail;
-        if(priContactEmail.getCreatedAt().isBefore(priContactPhone.getCreatedAt())) {
-            older = priContactEmail;
-            newer = priContactPhone;
+            List<Contact> secondaryContacts = contactRepository.findByLinkedId(primaryContact.getId());
+            return new ConsolidatedContactResponse(primaryContact, secondaryContacts);
         }
-
-        // there is no new email or phone number so don't create a contact entity
-
-        // the newer and all the contacts linked to newer will be linked to older
-        List<Contact> secondaryContactsOfNewer = contactRepository.findByLinkedId(newer.getId());
-        for(Contact contact : secondaryContactsOfNewer) {
-            contact.setLinkedId(older.getId());
-            contact.setUpdatedAt(LocalDateTime.now());
-            contactRepository.save(contact);
-        }
-        newer.setLinkedId(older.getId());
-        newer.setLinkPrecedence("secondary");
-        newer.setUpdatedAt(LocalDateTime.now());
-        contactRepository.save(newer);
-
-        // get all latest secondary contacts of older after updating
-        List<Contact> secondaryContacts = contactRepository.findByLinkedId(older.getId());
-
-        // consolidate into one contact response
-        return new ConsolidatedContactResponse(older, secondaryContacts);
     }
+
 
     private Contact getPrimaryContactByPhone(String phone) {
         if(phone == null || phone.isBlank()) {
