@@ -15,7 +15,7 @@ for more details refer the [problem statement](https://bitespeed.notion.site/Bit
 
 ---
 
-## 🚀 Live Demo
+## 🚀 Live API
 
 > 🌐 https://bitespeed-backend-task-wer5.onrender.com
 
